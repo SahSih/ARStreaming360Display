@@ -51,8 +51,7 @@ int main(int argc, char** argv) {
 	namedWindow("mediaPlayer", cv::WINDOW_AUTOSIZE);
 	// open videocam or video file
 	// if file path given, then video file opened; else video cam
-	// if video cam, then include "g_cap.open( string(argv[1]) );
-	g_cap.open("SeanMalto2014EditHD.avi");
+	g_cap.open("teamVideo.mp4");
 	if(!g_cap.isOpened())
 	{
 		cout << "Cannot open video cam" << endl;
