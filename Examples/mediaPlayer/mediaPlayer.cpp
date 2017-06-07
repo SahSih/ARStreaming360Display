@@ -20,7 +20,7 @@ int g_run = 1;
 * no more prgrammatic calls trigger single-step mode 
 * when g_dontset = 1
 */
-g_dontset = 0; // start out in single step mode
+int g_dontset = 0; // start out in single step mode
 // global variable so callback has access to capture object
 VideoCapture g_cap;
 
