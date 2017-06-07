@@ -47,8 +47,12 @@ void onTrackbarSlide(int pos, void*)
 }
 
 int main(int argc, char** argv) {
+	// create a named window
 	namedWindow("mediaPlayer", cv::WINDOW_AUTOSIZE);
-	g_cap.open(string(argv[1]));
+	// open videocam or video file
+	// if file path given, then video file opened; else video cam
+	// if video cam, then include "g_cap.open( string(argv[1]) );
+	g_cap.open("SeanMalto2014EditHD.avi");
 	if(!g_cap.isOpened())
 	{
 		cout << "Cannot open video cam" << endl;
