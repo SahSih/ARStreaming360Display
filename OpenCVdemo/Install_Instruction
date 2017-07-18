@@ -1,0 +1,19 @@
+mkdir build-dir
+//go inside it
+
+cd build-dir
+
+//then run cmake and point to the parent directory
+
+cmake ..
+
+//and finally run make
+
+make
+
+//Run excutable
+
+./sift
+
+
+*May need to install extra package or library, just follow the error message and install missing package/library
