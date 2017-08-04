@@ -17,7 +17,7 @@ int main(int argc, char* argv[]){
 
     //initialize VideoWriter object 
     cv::VideoWriter writer;
-    writer.open("saveLiveStream.avi", CV_FOURCC('H','2','6','4'), fps, size);
+    writer.open("saveLiveStream.avi", CV_FOURCC('M','J','P','G'), fps, size);
 
     //if initialize writer fails, exit program
     if(!writer.isOpened())
