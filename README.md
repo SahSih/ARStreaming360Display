@@ -11,7 +11,7 @@ Michael Josh Dangcil <br />
 **Team Advisor:** <br />
 Harry Li <br />
 
-Individual Contributions:
+**Individual Contributions:** <br />
 
 Michael Josh Dangcil - Contributed on Hardware setup and helped Eric with real time stitching and Report/presentations
 Eric Lan - Real time video stitching/recognition and streaming video to web server and Report/presentations
