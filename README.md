@@ -13,10 +13,10 @@ Harry Li <br />
 
 **Individual Contributions:** <br />
 
-Michael Josh Dangcil - Contributed on Hardware setup and helped Eric with real time stitching and Report/presentations
-Eric Lan - Real time video stitching/recognition and streaming video to web server and Report/presentations
-James Medel - Static video and image recognition/stitching and contributed on hardware setup and Report/presentations
-Chris Peng - Worked on web server and helped with image recognition algorithm research and Report/presentations
-Dennis Simon - Contributed on hardware setup and helped Eric with real time stitching/recognition research and Report/presentations
+Michael Josh Dangcil - Contributed on Hardware setup and helped Eric with real time stitching and Report/presentations <br />
+Eric Lan - Real time video stitching/recognition and streaming video to web server and Report/presentations <br />
+James Medel - Static video and image recognition/stitching and contributed on hardware setup and Report/presentations <br />
+Chris Peng - Worked on web server and helped with image recognition algorithm research and Report/presentations <br />
+Dennis Simon - Contributed on hardware setup and helped Eric with real time stitching/recognition research and Report/presentations <br />
 
 
