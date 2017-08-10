@@ -1,0 +1,14 @@
+What we are trying to do...
+
+Access multiple camera streams at once.
+Apply image stitching and panorama construction to the frames from these video streams.
+Perform motion detection in the panorama image.
+
+Project Structure:
+|--- Realtime_video_stitching
+|    |---- __init__.py
+|    |--- basicmotiondetector.py
+|    |--- panorama.py
+|--- realtime_stitching.py
+
+Run it with $ python realtime_stitching.py
