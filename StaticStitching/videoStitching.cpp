@@ -87,13 +87,13 @@ static int parseCmdArgs(int argc, char** argv);
 */
 
 //initialize and start camera capturing process(es)
-void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<Mat>*> &frameQueue, Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, vector<thread*> &cameraThrd, int &numVideos);
+void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frameQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, vector<thread*> &cameraThrd, int &numVideos);
 
 //release all camera capture resources(s)
 void stopMultiCapture(vector<VideoCapture*> &camCap, int &numVideos);
 
 //main camera capturing process that'll be done by thread(s)
-void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, int numVideos);
+void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, int numVideos);
 
 /*
 //detect feature keypoints per video frame
@@ -104,7 +104,7 @@ void detectFeaturesPerVideoFrames(Ptr<FeaturesFinder> &finder, vector<ImageFeatu
 void displayMultiCams(vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos);
 
 //display keypoints of all videos in GUI windows
-void displayFeaturesPerCam(vector<concurrent_queue<Mat>*> &frameQueue, vector<ImageFeatures> &features, int &numVideos);
+void displayFeaturesPerCam(vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos);
 
 /**
 *
@@ -190,19 +190,19 @@ int main( int argc, char** argv )
 	int SEC_TO_MIN = 60;
 	int MINUTES = 2;	//Estimated Time Video Plays
 	int FPVD = FPS * SEC_TO_MIN * MINUTES;
-	//Estimate num of features to allocate for each video using FPVD calc
-	vector<ImageFeatures> features(FPVD);
+	//this holds queue(s) which holds all frames keypoint features per camera
+	vector<concurrent_queue<ImageFeatures>*> featuresQueue;
 	//Estimate num of frames to allocate for each video using FPVD calc
 	vector<Size> fullFrameSizes(FPVD);
 
 
 	//initialize and start camera video stitching process(es)
-	startMultiCapture(camCapture, frameQueue, finder, features, fullFrameSizes, cameraThread, numVideos);	
+	startMultiCapture(camCapture, featuresQueue, frameQueue, finder, fullFrameSizes, cameraThread, numVideos);	
 
 LOGLN("Finding features, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	//display features in frames per video
-	displayFeaturesPerCam(frameQueue, features, numVideos);
+	displayFeaturesPerCam(featuresQueue, frameQueue, numVideos);
 
 	//display all cameras in GUI windows
 	//displayMultiCams(frameQueue, numVideos);
@@ -503,11 +503,12 @@ static int parseCmdArgs(int argc, char** argv)
 }
 
 //initialize and start video stitching process(es)
-void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<Mat>*> &frameQueue, Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, vector<thread*> &cameraThrd, int &numVideos)
+void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frameQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, vector<thread*> &cameraThrd, int &numVideos)
 {
 	VideoCapture *capture;
 	thread *camThrd;
 	concurrent_queue<Mat> *frmQueue;
+	concurrent_queue<ImageFeatures> *ftrsQueue;
 	cout << "Video Index: " << numVideos << endl;
 	for(int i = 0; i < numVideos; ++i)
 	{
@@ -522,24 +523,27 @@ void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<Ma
 		//Insert VideoCapture to the vector
 		camCap.push_back(capture);
 		//Make thread instance
-		camThrd = new thread(captureFrame, ref(camCap), ref(frameQueue), ref(finder), ref(features), ref(fullFrameSizes), i);
+		camThrd = new thread(captureFrame, ref(camCap), ref(featuresQueue), ref(frameQueue), ref(finder), ref(fullFrameSizes), i);
 		//Insert thead to vector
 		cameraThrd.push_back(camThrd);
 		//Make queue instance
 		frmQueue = new concurrent_queue<Mat>;
+		ftrsQueue = new concurrent_queue<ImageFeatures>;
 		//Insert queue to the vector of frame objects
 		frameQueue.push_back(frmQueue);
+		featuresQueue.push_back(ftrsQueue);
 	}
 }
 
 //main camera capturing process that'll be done by thread(s)
-void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, int numVideos)
+void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, int numVideos)
 {
 	cout << "Inside captureFrame:" << endl;
 	cout << "numVideos = " << numVideos << endl;
 	VideoCapture *capture = camCap.at(numVideos);
 	int i = 0;
 	Mat fullFrame, frame;
+	ImageFeatures features;
 	while(true)
 	{
 		//Grab frame from camera capture, if successful
@@ -576,13 +580,14 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<Mat>*> 
 				seamWorkAspect = seamScale / workScale;
 				isSeamScaleSet = true;
 			}
-			(*finder)(frame, features[i]);
-			features[i].img_idx = i;
-			LOGLN("Features in frame #" << i+1 << ": " << features[i].keypoints.size());
+			(*finder)(frame, features);
+			features.img_idx = i;
+			LOGLN("Features in frame #" << i+1 << ": " << features.keypoints.size());
 			resize(fullFrame, frame, Size(), seamScale, seamScale);
 
 			//Insert frame to the queue
 			//frmQueue also takes the place of Mat images(FPVD)
+			featuresQueue.at(numVideos)->push(features);
 			frmQueue.at(numVideos)->push(frame);
 			i++;
 		}
@@ -670,7 +675,7 @@ void displayMultiCams(vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos
 }
 
 //display features in frames per video
-void displayFeaturesPerCam(vector<concurrent_queue<Mat>*> &frameQueue, vector<ImageFeatures> &features, int &numVideos)
+void displayFeaturesPerCam(vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos)
 {
 		//loop while key not pressed
 	while(waitKey(20) != 27)
@@ -679,10 +684,11 @@ void displayFeaturesPerCam(vector<concurrent_queue<Mat>*> &frameQueue, vector<Im
 		for(int i = 0; i < numVideos; ++i)
 		{
 			Mat frame, frameKeyPoints;
+			ImageFeatures features;
 			//Pop frame from queue and check if frame is valid
-			if(frameQueue.at(i)->try_pop(frame))
+			if(frameQueue.at(i)->try_pop(frame) && featuresQueue.at(i)->try_pop(features))
 			{
-				drawKeypoints(frame, features.at(i).keypoints, frameKeyPoints, Scalar(255, 0, 0), DrawMatchesFlags::DEFAULT); 
+				drawKeypoints(frame, features.keypoints, frameKeyPoints, Scalar(255, 0, 0), DrawMatchesFlags::DEFAULT); 
 				//Show frame
 				imshow(vidNames.at(i), frameKeyPoints);
 			}
