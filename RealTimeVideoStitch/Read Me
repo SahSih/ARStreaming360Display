@@ -1,3 +1,4 @@
+
 Introduction
 
 What we are trying to do: Access multiple camera streams at once; apply image stitching and panorama construction to the frames from these video streams.
