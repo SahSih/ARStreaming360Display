@@ -16,13 +16,13 @@ Makefile
 
 ## Program List:
 
-<VideoStreaming.py>
-<motion_detector.py>
-<picamera_fps_demo.py>	
-<videostream_demo (SIFT).py>	
-<videostream_demo.py>
-<FeaturePoint_SIFT.cpp>
-<CMakeLists.txt>
+* <VideoStreaming.py>
+* <motion_detector.py>
+* <picamera_fps_demo.py>	
+* <videostream_demo (SIFT).py>	
+* <videostream_demo.py>
+* <FeaturePoint_SIFT.cpp>
+* <CMakeLists.txt>
 
 ## Project Structure:
 
