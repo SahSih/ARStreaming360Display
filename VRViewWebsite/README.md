@@ -1,3 +1,5 @@
+Citation: Google VR, open source project/repo used
+
 Getting Started with VR View in HTML 
 ============================================
 
