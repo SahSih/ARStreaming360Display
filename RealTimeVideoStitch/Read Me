@@ -4,6 +4,13 @@ Access multiple camera streams at once.
 Apply image stitching and panorama construction to the frames from these video streams.
 Perform motion detection in the panorama image.
 
+<VideoStreaming.py>
+<motion_detector.py>
+<picamera_fps_demo.py>	
+<videostream_demo (SIFT).py>	
+<videostream_demo.py>
+
+
 Project Structure:
 |--- Realtime_video_stitching
 |    |---- __init__.py
@@ -12,3 +19,26 @@ Project Structure:
 |--- realtime_stitching.py
 
 Run it with $ python realtime_stitching.py
+Run it with $ python Filename.py
+
+<FeaturePoint_SIFT.cpp>
+<CMakeLists.txt>
+
+What we are trying to do...
+
+- Real-time feature points detection by SIFT (webcam)
+- Feature points detection from file (video, image)
+
+
+Cmake required -
+
+
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+$ ./sift
+
+
+
+
