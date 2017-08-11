@@ -1,3 +1,4 @@
+#Real-time Image Stitching
 
 Introduction
 
