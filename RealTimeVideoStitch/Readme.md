@@ -1,11 +1,11 @@
-"#Real-time Image Stitching"
+# Real-time Image Stitching
 
-Introduction
+## Introduction
 
 What we are trying to do: Access multiple camera streams at once; apply image stitching and panorama construction to the frames from these video streams.
 Perform motion detection in the panorama image, real-time feature points detection, and video stitching.
 
-Prerequisites
+## Prerequisites
 
 Installed Ubuntu 14.04 or later version or Virtual Machine
 Downloaded and Installed Latest Version of OpenCV
@@ -14,7 +14,7 @@ Run the script sh -x install_opencv.sh
 Downloaded our Makefile to build OpenCV c++ source code into executable programs
 Makefile
 
-Program List:
+## Program List:
 
 <VideoStreaming.py>
 <motion_detector.py>
@@ -24,7 +24,8 @@ Program List:
 <FeaturePoint_SIFT.cpp>
 <CMakeLists.txt>
 
-Project Structure:
+## Project Structure:
+
 |--- Realtime_video_stitching
 |    |---- __init__.py
 |    |--- basicmotiondetector.py
@@ -32,6 +33,7 @@ Project Structure:
 |--- realtime_stitching.py
 |--- FeaturePoint_SIFT.cpp
 
+## Instrctions:
 
 Note: You should have OpenCV installed on your computer and have downloaded the Makefile. Makefile should be placed into the same folder where your OpenCV source code files are located.
 1. Download the whole package and extract it
