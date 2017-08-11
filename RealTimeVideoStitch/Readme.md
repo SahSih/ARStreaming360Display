@@ -1,4 +1,4 @@
-#Real-time Image Stitching
+"#Real-time Image Stitching"
 
 Introduction
 
