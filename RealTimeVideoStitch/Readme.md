@@ -26,12 +26,12 @@ Makefile
 
 ## Project Structure:
 
-|--- Realtime_video_stitching
-|    |---- __init__.py
-|    |--- basicmotiondetector.py
-|    |--- panorama.py
-|--- realtime_stitching.py
-|--- FeaturePoint_SIFT.cpp
+* |--- Realtime_video_stitching
+* |    |---- __init__.py
+* |    |--- basicmotiondetector.py
+* |    |--- panorama.py
+* |--- realtime_stitching.py
+* |--- FeaturePoint_SIFT.cpp
 
 ## Instrctions:
 
@@ -46,13 +46,13 @@ Note: You should have OpenCV installed on your computer and have downloaded the 
 - Feature points detection from file (video, image)
 
 Cmake required -
-
+```
 $ mkdir build
 $ cd build
 $ cmake ..
 $ make
 $ ./sift
-
+```
 4. For other programs written in Python, simply run them by $ python filename.py
 
 5. Briefly analyze the menu options below, then we will walkthrough how to execute the program from the command line.
@@ -61,8 +61,8 @@ ENTER file - Detect draw feature points from local picture file
 ENTER video - Detect draw feature points from a local video file               
 ENTER live - Detect draw feature points from live streaming                   
 ****************
-
+```
 $ file // will load the image file and display feature points as small red circles
 $ video // will load pre-recorded video to the program and display feature points
 $ live // will access to the built-in/external webcams to display feature points in real-time.
-
+```
