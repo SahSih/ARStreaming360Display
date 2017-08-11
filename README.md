@@ -19,4 +19,10 @@ James Medel - Static video and image recognition/stitching and contributed on ha
 Chris Peng - Worked on web server and helped with image recognition algorithm research and Report/presentations <br />
 Dennis Simon - Contributed on hardware setup and helped Eric with real time stitching/recognition research and Report/presentations <br />
 
+Individual Readme's for each section(Website, realtime stitching, static stitching) of the project can be found in their seperate folders.  <br />
+
+https://github.com/SahSih/ARStreaming360Display/blob/master/RealTimeVideoStitch/Read%20Me  <br />
+https://github.com/SahSih/ARStreaming360Display/blob/master/StaticStitching/README.md <br />
+https://github.com/SahSih/ARStreaming360Display/blob/master/VRViewWebsite/README.md <br />
+ 
 
