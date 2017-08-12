@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <ctime>
 #include <tbb/concurrent_queue.h>
 #include <opencv2/videoio.hpp>
 #include "opencv2/opencv_modules.hpp"
@@ -36,13 +37,15 @@ using namespace cv::detail;
 *
 */
 
+time_t timev = time(nullptr);
+
 /*Help Message that shows how to use CLI to interact with program*/
 static void printProgUsage();
 
 /*Default CLI Args*/
 
 //this holds video files
-vector<string> vidNames;
+vector<String> vidNames;
 bool preview = false;
 bool tryCuda = false;
 double workMegapix = 0.6;
@@ -89,9 +92,6 @@ static int parseCmdArgs(int argc, char** argv);
 //initialize and start camera capturing process(es)
 void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frameQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, vector<thread*> &cameraThrd, int &numVideos);
 
-//release all camera capture resources(s)
-void stopMultiCapture(vector<VideoCapture*> &camCap, int &numVideos);
-
 //main camera capturing process that'll be done by thread(s)
 void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, int numVideos);
 
@@ -99,6 +99,12 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFe
 //detect feature keypoints per video frame
 void detectFeaturesPerVideoFrames(Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, Mat &fullFrame, Mat &frame, int &i);
 */
+
+//match feature keypoints across multiple frames that come from different videos
+void matchFeatures(Ptr<FeaturesMatcher> &matcher, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, concurrent_queue<vector<MatchesInfo>> &pairWiseMatchesQueue, vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos);
+
+//release all camera capture resources(s)
+void stopMultiCapture(vector<VideoCapture*> &camCap, int &numVideos);
 
 //display all videos in GUI windows
 void displayMultiCams(vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos);
@@ -126,7 +132,7 @@ int main( int argc, char** argv )
 #if ENABLE_LOG
 	int64 appStartTime = getTickCount();
 #endif
-
+	cout << "Starting Stitching at date,time: " << asctime(localtime(&timev)) << endl;
 #if 0
 	cv::setBreakOnError(true);
 #endif
@@ -200,6 +206,30 @@ int main( int argc, char** argv )
 	startMultiCapture(camCapture, featuresQueue, frameQueue, finder, fullFrameSizes, cameraThread, numVideos);	
 
 LOGLN("Finding features, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+
+
+LOG("Pairwise matching");
+#if ENABLE_LOG
+	t = getTickCount();
+#endif	
+
+/**
+*	Initialize FeaturesMatcher for finding matched features across all videos
+*/
+
+	concurrent_queue<vector<MatchesInfo>> pairWiseMatchesQueue;
+	Ptr<FeaturesMatcher> matcher;
+
+	if (matcherType == "affine")
+		matcher = makePtr<AffineBestOf2NearestMatcher>(false, tryCuda, matchConf);
+	else if (rangeWidth==-1)
+		matcher = makePtr<BestOf2NearestMatcher>(tryCuda, matchConf);
+	else
+		matcher = makePtr<BestOf2NearestRangeMatcher>(rangeWidth, tryCuda, matchConf);
+
+
+	//find all feature keypoint matches across multiple frames of different videos
+	matchFeatures(matcher, featuresQueue, pairWiseMatchesQueue, frameQueue, numVideos);
 
 	//display features in frames per video
 	displayFeaturesPerCam(featuresQueue, frameQueue, numVideos);
@@ -517,9 +547,9 @@ void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<Im
 		if(!capture->isOpened())
 		{
 			cout << "Failed to open file: " << vidNames.at(i) << endl;
-			break;
+			return;
 		}
-		cout << "Video File Setup: " << (vidNames.at(i)) << endl;
+		//cout << "Video File Setup: " << (vidNames.at(i)) << endl;
 		//Insert VideoCapture to the vector
 		camCap.push_back(capture);
 		//Make thread instance
@@ -538,8 +568,8 @@ void startMultiCapture(vector<VideoCapture*> &camCap, vector<concurrent_queue<Im
 //main camera capturing process that'll be done by thread(s)
 void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, vector<concurrent_queue<Mat>*> &frmQueue, Ptr<FeaturesFinder> &finder, vector<Size> &fullFrameSizes, int numVideos)
 {
-	cout << "Inside captureFrame:" << endl;
-	cout << "numVideos = " << numVideos << endl;
+	//cout << "Inside captureFrame:" << endl;
+	//cout << "numVideos = " << numVideos << endl;
 	VideoCapture *capture = camCap.at(numVideos);
 	int i = 0;
 	Mat fullFrame, frame;
@@ -549,7 +579,7 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFe
 		//Grab frame from camera capture, if successful
 		if((*capture).read(fullFrame))
 		{
-			cout << "Going to push in frame from vidIndex: " << numVideos << endl;
+			//cout << "Going to push in frame from vidIndex: " << numVideos << endl;
 			//feature Detection on frame before it gets pushed to frameQueue
 			//detectFeaturesPerVideoFrame(finder, features, fullFrameSizes, fullFrame, frame, i);
 
@@ -557,7 +587,7 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFe
 			if(fullFrame.empty())
 			{
 				LOGLN("Can't open frame " << vidNames.at(numVideos));
-				break;
+				return;
 			}
 			if(workMegapix < 0)
 			{
@@ -582,7 +612,7 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFe
 			}
 			(*finder)(frame, features);
 			features.img_idx = i;
-			LOGLN("Features in frame #" << i+1 << ": " << features.keypoints.size());
+			//LOGLN("Features in frame #" << i+1 << ": " << features.keypoints.size());
 			resize(fullFrame, frame, Size(), seamScale, seamScale);
 
 			//Insert frame to the queue
@@ -598,60 +628,530 @@ void captureFrame(vector<VideoCapture*> &camCap, vector<concurrent_queue<ImageFe
 	fullFrame.release();
 }
 
-/*
-//Detects Features Per Video File Frames
-void detectFeaturesPerVideoFrames(Ptr<FeaturesFinder> &finder, vector<ImageFeatures> &features, vector<Size> &fullFrameSizes, Mat &fullFrame, Mat &frame, int &i)
+//Hardcoded for 4 video files or 4 video cameras
+//finds the matching features of 4 frames from 4 different vids/cameras
+void matchFeatures(Ptr<FeaturesMatcher> &matcher, vector<concurrent_queue<ImageFeatures>*> &featuresQueue, concurrent_queue<vector<MatchesInfo>> &pairWiseMatchesQueue, vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos)
 {
-	fullFrameSizes[i] = fullFrame.size();
-	if(workMegapix < 0)
-	{
-		frame = fullFrame;
-		workScale = 1;
-		isWorkScaleSet = true;
-	}
+
+	cout << "Enter MatchFeatures function" << endl;
+	/*
+	*	Initialize for Matching Features
+	*/
+	concurrent_queue<vector<String>> frameNamesQueue;
+	concurrent_queue<vector<Mat>> framesQueue;
+	concurrent_queue<vector<Size>> fullFrameSizesQueue;
+
+	ImageFeatures features0, features1, features2, features3;
+	vector<ImageFeatures> ftrsAcrsVidFrames = {features0, features1, features2, features3};
+
+	Mat frame0, frame1, frame2, frame3;
+	vector<Mat> frameAcrsEachVideos = {frame0, frame1, frame2, frame3};
+
+	bool tryPopFeatures = featuresQueue.at(0)->try_pop(ftrsAcrsVidFrames[0]) && featuresQueue.at(1)->try_pop(ftrsAcrsVidFrames[1]) && featuresQueue.at(2)->try_pop(ftrsAcrsVidFrames[2]) && featuresQueue.at(3)->try_pop(ftrsAcrsVidFrames[3]);
+	
+	bool tryPopFrames = frameQueue[0]->try_pop(frameAcrsEachVideos[0]) && frameQueue[1]->try_pop(frameAcrsEachVideos[1]) && frameQueue[2]->try_pop(frameAcrsEachVideos[2]) && frameQueue[3]->try_pop(frameAcrsEachVideos[3]);
+
+	/*
+	*	Initialize for Estimator
+	*	Estimator estimates the rotations of all cameras by taking
+	*	the features of all frames and the pairwise matches between them
+	*/
+
+	Ptr<Estimator> estimator;
+
+ 	if (estimatorType == "affine")
+		estimator = makePtr<AffineBasedEstimator>();
+	else
+		estimator = makePtr<HomographyBasedEstimator>();
+
+	concurrent_queue<vector<CameraParams>> camerasQueue;
+
+	/*
+	*	Initialize for Adjuster 
+	*	Adjuster performs camera refinement methods
+	*/
+
+	Ptr<detail::BundleAdjusterBase> adjuster;
+	
+	if (baCostFunc == "reproj") 
+		adjuster = makePtr<detail::BundleAdjusterReproj>();
+	else if (baCostFunc == "ray") 
+		adjuster = makePtr<detail::BundleAdjusterRay>();
+	else if (baCostFunc == "affine") 
+		adjuster = makePtr<detail::BundleAdjusterAffinePartial>();
+	else if (baCostFunc == "no") 
+		adjuster = makePtr<NoBundleAdjuster>();
 	else
 	{
-		if(!isWorkScaleSet)
-		{
-			workScale = min(1.0, sqrt(workMegapix * 1e6 / fullFrame.size().area()));
-			isWorkScaleSet = true;
-		}
-		resize(fullFrame, frame, Size(), workScale, workScale);
+		cout << "Unknown bundle adjustment cost function: '" << baCostFunc << "'.\n";
+		return;
 	}
-	if(!isSeamScaleSet)
+
+	adjuster->setConfThresh(confThresh);
+	Mat_<uchar> refineMask = Mat::zeros(3, 3, CV_8U);
+	if (baRefineMask[0] == 'x') 
+		refineMask(0,0) = 1;
+	if (baRefineMask[1] == 'x') 
+		refineMask(0,1) = 1;
+	if (baRefineMask[2] == 'x') 
+		refineMask(0,2) = 1;
+	if (baRefineMask[3] == 'x') 
+		refineMask(1,1) = 1;
+	if (baRefineMask[4] == 'x') 
+		refineMask(1,2) = 1;
+	adjuster->setRefinementMask(refineMask);
+
+	/*
+	*
+	*	Initialize Warper Creator and RotationWarper
+	*
+	*/
+
+	// Warp images and their masks
+
+	Ptr<WarperCreator> warperCreator;
+#ifdef HAVE_OPENCV_CUDAWARPING
+	if (tryCuda && cuda::getCudaEnabledDeviceCount() > 0)
 	{
-		seamScale = min(1.0, sqrt(seamMegapix * 1e6 / fullFrame.size().area()));
-		seamWorkAspect = seamScale / workScale;
-		isSeamScaleSet = true;
+		if (warpType == "plane")
+			warperCreator = makePtr<cv::PlaneWarperGpu>();
+		else if (warpType == "cylindrical")
+			warperCreator = makePtr<cv::CylindricalWarperGpu>();
+		else if (warpType == "spherical")
+			warperCreator = makePtr<cv::SphericalWarperGpu>();
 	}
-	(*finder)(frame, features[i]);
-	features[i].img_idx = i;
-	LOGLN("Features in frame #" << i+1 << ": " << features[i].keypoints.size());
-	resize(fullFrame, frame, Size(), seamScale, seamScale);
-}
-*/
-
-/*
-void displayPanoVideo(vector<concurrent_queue<Mat>*> &frameQueue, int &numVideos)
-{
-
-}
-*/
-
-//release all camera capture resources(s)
-void stopMultiCapture(vector<VideoCapture*> &camCap, int &numVideos)
-{
-	VideoCapture *capture;
-	for(int i = 0; i < numVideos; ++i)
+	else
+#endif
 	{
-		capture = camCap.at(i);
-		if(capture->isOpened())
-		{
-			//Release VideoCapture resource
-			capture->release();
-			cout << "Capture " << i << " released" << endl;
-		}
+		if (warpType == "plane")
+			warperCreator = makePtr<cv::PlaneWarper>();
+		else if (warpType == "affine")
+			warperCreator = makePtr<cv::AffineWarper>();
+		else if (warpType == "cylindrical")
+			warperCreator = makePtr<cv::CylindricalWarper>();
+		else if (warpType == "spherical")
+			warperCreator = makePtr<cv::SphericalWarper>();
+		else if (warpType == "fisheye")
+			warperCreator = makePtr<cv::FisheyeWarper>();
+		else if (warpType == "stereographic")
+			warperCreator = makePtr<cv::StereographicWarper>();
+		else if (warpType == "compressedPlaneA2B1")
+			warperCreator = makePtr<cv::CompressedRectilinearWarper>(2.0f, 1.0f);
+		else if (warpType == "compressedPlaneA1.5B1")
+			warperCreator = makePtr<cv::CompressedRectilinearWarper>(1.5f, 1.0f);
+		else if (warpType == "compressedPlanePortraitA2B1")
+			warperCreator = makePtr<cv::CompressedRectilinearPortraitWarper>(2.0f, 1.0f);
+		else if (warpType == "compressedPlanePortraitA1.5B1")
+			warperCreator = makePtr<cv::CompressedRectilinearPortraitWarper>(1.5f, 1.0f);
+		else if (warpType == "paniniA2B1")
+			warperCreator = makePtr<cv::PaniniWarper>(2.0f, 1.0f);
+		else if (warpType == "paniniA1.5B1")
+			warperCreator = makePtr<cv::PaniniWarper>(1.5f, 1.0f);
+		else if (warpType == "paniniPortraitA2B1")
+			warperCreator = makePtr<cv::PaniniPortraitWarper>(2.0f, 1.0f);
+		else if (warpType == "paniniPortraitA1.5B1")
+			warperCreator = makePtr<cv::PaniniPortraitWarper>(1.5f, 1.0f);
+		else if (warpType == "mercator")
+ 			warperCreator = makePtr<cv::MercatorWarper>();
+		else if (warpType == "transverseMercator")
+			warperCreator = makePtr<cv::TransverseMercatorWarper>();
 	}
+
+	if (!warperCreator)
+	{
+		cout << "Can't create the following warper '" << warpType << "'\n";
+		return;
+	}
+
+    Ptr<RotationWarper> warper;
+
+	/*
+	*
+	*	Initialize ExposureCompensator
+	*
+	*/
+
+	Ptr<ExposureCompensator> compensator = ExposureCompensator::createDefault(exposCompType);
+
+	/*
+	*
+	*	Initialize SeamFinder
+	*
+	*/	
+
+	Ptr<SeamFinder> seamFinder;
+
+	if (seamFindType == "no")
+		seamFinder = makePtr<detail::NoSeamFinder>();
+	else if (seamFindType == "voronoi")
+		seamFinder = makePtr<detail::VoronoiSeamFinder>();
+	else if (seamFindType == "gc_color")
+	{
+#ifdef HAVE_OPENCV_CUDALEGACY
+		if (tryCuda && cuda::getCudaEnabledDeviceCount() > 0)
+			seamFinder = makePtr<detail::GraphCutSeamFinderGpu>(GraphCutSeamFinderBase::COST_COLOR);
+		else
+#endif
+			seamFinder = makePtr<detail::GraphCutSeamFinder>(GraphCutSeamFinderBase::COST_COLOR);
+	}
+	else if (seamFindType == "gc_colorgrad")
+	{
+#ifdef HAVE_OPENCV_CUDALEGACY
+		if (tryCuda && cuda::getCudaEnabledDeviceCount() > 0)
+			seamFinder = makePtr<detail::GraphCutSeamFinderGpu>(GraphCutSeamFinderBase::COST_COLOR_GRAD);
+		else
+#endif
+			seamFinder = makePtr<detail::GraphCutSeamFinder>(GraphCutSeamFinderBase::COST_COLOR_GRAD);
+    	}
+	else if (seamFindType == "dp_color")
+		seamFinder = makePtr<detail::DpSeamFinder>(DpSeamFinder::COLOR);
+	else if (seamFindType == "dp_colorgrad")
+		seamFinder = makePtr<detail::DpSeamFinder>(DpSeamFinder::COLOR_GRAD);
+	if (!seamFinder)
+	{
+		cout << "Can't create the following seam finder '" << seamFindType << "'\n";
+		return;
+	}
+
+	/*
+	*
+	*	Initialize Blender and Timelapser
+	*
+	*/
+
+	
+	Ptr<Blender> blender;
+	Ptr<Timelapser> timelapser;
+
+	int index = 0;
+	//loop while key not pressed and perform video stitching per frames
+	while(waitKey(20) != 27)
+	{
+		//cout << "Enter While loop of MatchFeatures" << endl;
+		//Pop frame from queue and check if frame is valid
+		if(tryPopFeatures && tryPopFrames)
+		{
+			cout << "Successfully Popped Features across Frames #" << index << endl;
+			vector<MatchesInfo> pairWiseMatches;
+			(*matcher)(ftrsAcrsVidFrames, pairWiseMatches);
+
+			// Check if we should save matches graph
+			// saves a new matching graph for each frame set number
+			if(saveGraph)
+			{
+				LOGLN("Saving matches graph for each frame set number...");
+				ofstream f((saveGraphTo + "frameSetNum_" + to_string(index)).c_str());
+				f << matchesGraphAsString(vidNames, pairWiseMatches, confThresh);
+			}
+			
+			// Leave only frames we are sure are from the same panorama
+			vector<int> indices = leaveBiggestComponent(ftrsAcrsVidFrames, pairWiseMatches, confThresh);
+			vector<Mat> frameSubset;
+			vector<String> frameNamesSubset;
+			vector<Size> fullFrameSizesSubset;
+		
+			//TODO: Current Problem vidNames on next iteration will be duplicate
+			//Potential Solution on next iteration differ 'vidNames' vector
+			for(size_t i = 0; i < indices.size(); ++i)
+			{
+				frameNamesSubset.push_back(vidNames[indices[i]]);
+				frameSubset.push_back(frameAcrsEachVideos[indices[i]]);
+				fullFrameSizesSubset.push_back(frameAcrsEachVideos[indices[i]].size());
+			}
+			
+			
+
+			//Check if we still have enough frames
+			int numFrames = static_cast<int>(frameNamesSubset.size());
+			if(numFrames < 2)
+			{
+				cout << "Need more frames at iteration " << index << endl;
+				return;
+			}
+				
+			vector<CameraParams> cameras;
+			bool estimateCamParams = !(*estimator)(ftrsAcrsVidFrames, pairWiseMatches, cameras);
+			if(estimateCamParams)
+			{
+				cout << "Homography estimation failed.\n";
+				return;	
+			}
+
+			for(size_t i = 0; i < cameras.size(); ++i)
+			{
+				Mat R;
+				cameras[i].R.convertTo(R, CV_32F);
+				cameras[i].R = R;
+				cout << "Initial camera intrinsics #" << indices[i]+1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R << endl;
+			}
+
+			//Adjuster performs camera refinement methods
+
+			if (!(*adjuster)(ftrsAcrsVidFrames, pairWiseMatches, cameras))
+			{
+				cout << "Camera parameters adjusting failed.\n";
+				return;
+			}
+
+			//Find median focal length
+			vector<double> focals;
+			for(size_t i = 0; i < cameras.size(); ++i)
+			{
+				cout << "Camera #" << indices[i]+1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R << endl; 
+				focals.push_back(cameras[i].focal);
+			}
+
+			sort(focals.begin(), focals.end());
+			float warpedFrameScale;
+			if(focals.size() % 2 == 1)
+				warpedFrameScale = static_cast<float>(focals[focals.size() / 2]);
+			else
+				warpedFrameScale = static_cast<float>(focals[focals.size() / 2 - 1] + focals[focals.size() / 2] * 0.5f);
+
+			if(doWaveCorrect)
+			{
+				vector<Mat> rmats;
+				for(size_t i = 0; i < cameras.size(); ++i)
+					rmats.push_back(cameras[i].R.clone());
+				waveCorrect(rmats, wave_correct);
+				for(size_t i = 0; i < cameras.size(); ++i)
+					cameras[i].R = rmats[i];
+			}
+			
+			//Prepare frames masks
+			vector<Point> corners(numFrames);
+			vector<UMat> masksWarped(numFrames);
+			vector<UMat> framesWarped(numFrames);
+			vector<Size> sizes(numFrames);
+			vector<UMat> masks(numFrames);
+
+
+			for (int i = 0; i < numFrames; ++i)
+			{
+				masks[i].create(frameSubset[i].size(), CV_8U);
+				masks[i].setTo(Scalar::all(255));
+			}
+
+			warperCreator->create(static_cast<float>(warpedFrameScale * seamWorkAspect));
+
+			for(int i = 0; i < numFrames; ++i)
+			{
+				Mat_<float> K;
+				cameras[i].K().convertTo(K, CV_32F);
+				float swa = (float)seamWorkAspect;
+				K(0,0) *= swa;
+				K(0,2) *= swa;
+				K(1,1) *= swa;
+				K(1,2) *= swa;
+
+				corners[i] = warper->warp(frameSubset[i], K, cameras[i].R, INTER_LINEAR, BORDER_REFLECT, framesWarped[i]);
+				sizes[i] = framesWarped[i].size();
+
+				warper->warp(masks[i], K, cameras[i].R, INTER_NEAREST, BORDER_CONSTANT, masksWarped[i]);
+			}
+
+			vector<UMat> framesWarpedF(numFrames);
+			for(int i = 0; i < numFrames; ++i)
+				framesWarped[i].convertTo(framesWarpedF[i], CV_32F);
+
+			cout << "Warping frames for iteration " + to_string(index) + " done" << endl;
+
+
+			//Feed Compensator function
+			compensator->feed(corners, framesWarped, masksWarped);
+
+			//SeamFinder
+			seamFinder->find(framesWarpedF, corners, masksWarped);
+
+			//Compositing
+			Mat frmWarped, frmWarpedS;
+			Mat dilatedMask, seamMask, mask, maskWarped;
+			//double composeSeamAspect = 1;
+			double composeWorkAspect = 1;
+			
+			VideoWriter writerPanoFile;
+			//ELP 170 Deg Fisheye 30 FPS
+			double fps = 30.0;
+
+			cout << "Made it to for loop that writes stitched Pano frame to file\n";
+			Mat frameResized;
+			for(int frm_idx = 0; frm_idx < numFrames; ++frm_idx)
+			{
+				cout << "Compositing frame #" << indices[frm_idx]+1 << endl;
+
+				// already read the frames back in cameraFrameCapture
+				//frameAcrsEachVideos[frm_idx]
+				if(!isComposeScaleSet)
+				{
+					if(composeMegapix > 0)
+					{
+						composeScale = min(1.0, sqrt(composeMegapix * 1e6 / frameAcrsEachVideos[frm_idx].size().area()));
+					}
+					isComposeScaleSet = true;
+
+					// Compute relative scales
+            				//composeSeamAspect = composeScale / seamScale;
+					composeWorkAspect = composeScale / workScale;
+
+					// Update warped frame scale
+					warpedFrameScale *= static_cast<float>(composeWorkAspect);
+					warper = warperCreator->create(warpedFrameScale);
+
+					// Update corners and sizes
+					for(int i = 0; i < numFrames; ++i)
+					{
+						// Update intrinsics
+						cameras[i].focal *= composeWorkAspect;
+						cameras[i].ppx *= composeWorkAspect;
+						cameras[i].ppy *= composeWorkAspect;
+
+						// Update corner and size
+						Size sz = frameAcrsEachVideos[i].size();
+						if(std::abs(composeScale - 1) > 1e-1)
+						{
+sz.width = cvRound(frameAcrsEachVideos[i].size().width * composeScale);
+							sz.height = cvRound(frameAcrsEachVideos[i].size().height * composeScale);
+						}
+
+						Mat K;
+						cameras[i].K().convertTo(K, CV_32F);
+						Rect roi = warper->warpRoi(sz, K, cameras[i].R);
+						corners[i] = roi.tl();
+						sizes[i] = roi.size();	
+					}
+				}
+
+				if(abs(composeScale - 1) > 1e-1)
+				{
+					resize(frameAcrsEachVideos[frm_idx], frameResized, Size(), composeScale, composeScale);
+				}
+				else
+				{
+					frameResized = frameAcrsEachVideos[frm_idx];
+				}
+				
+				Size frmSize = frameResized.size();
+				
+				Mat K;
+				cameras[frm_idx].K().convertTo(K, CV_32F);
+
+				// Warp the current frame
+				warper->warp(frameResized, K, cameras[frm_idx].R, INTER_LINEAR, BORDER_REFLECT, frmWarped);
+				// Warp the current frame mask
+				mask.create(frmSize, CV_8U);
+				mask.setTo(Scalar::all(255));
+				warper->warp(mask, K, cameras[frm_idx].R, INTER_NEAREST, BORDER_CONSTANT, maskWarped);
+				
+				// Compensate exposure
+				compensator->apply(frm_idx, corners[frm_idx], frmWarped, maskWarped); 
+				
+				frmWarped.convertTo(frmWarpedS, CV_16S);
+
+				dilate(masksWarped[frm_idx], dilatedMask, Mat());
+				resize(dilatedMask, seamMask, maskWarped.size());
+				maskWarped = seamMask & maskWarped;
+
+				if(!blender && !timelapse)
+				{
+					blender = Blender::createDefault(blendType, tryCuda);
+					Size dstSz = resultRoi(corners, sizes).size();
+					float blendWidth = sqrt(static_cast<float>(dstSz.area())) * blendStrength / 100.f;
+					if(blendWidth < 1.f)
+					{
+						blender = Blender::createDefault(Blender::NO, tryCuda);
+					}
+					else if(blendType == Blender::MULTI_BAND)
+					{
+						MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(blender.get());
+						mb->setNumBands(static_cast<int>(ceil(log(blendWidth)/log(2.)) - 1.));
+						cout << "Multi-band blender, number of bands: " << mb->numBands() << endl;
+					}
+					else if(blendType == Blender::FEATHER)
+					{
+						FeatherBlender* fb = dynamic_cast<FeatherBlender*>(blender.get());
+						fb->setSharpness(1.f/blendWidth);
+						LOGLN("Feather blender, sharpness: " << fb->sharpness());
+					}
+					blender->prepare(corners, sizes);
+				}
+				else if(!timelapser && timelapse)
+				{
+					timelapser = Timelapser::createDefault(timelapseType);
+					timelapser->initialize(corners, sizes);
+				}
+					
+				// Blend the current frame
+				if(timelapse)
+				{
+					timelapser->process(frmWarpedS, Mat::ones(frmWarpedS.size(), CV_8UC1), corners[frm_idx]);
+					String fixedFileName;
+					size_t posS = String(vidNames[frm_idx]).find_last_of("/\\");
+					if(posS == String::npos)
+					{
+						fixedFileName = "fixed_" + vidNames[frm_idx];
+					}
+					else
+					{
+						fixedFileName = "fixed_" + String(vidNames[frm_idx]).substr(posS + 1, String(vidNames[frm_idx]).length() - posS);
+					}
+					
+
+					writerPanoFile.open(fixedFileName, CV_FOURCC('M','J','P','G'), fps, timelapser->getDst().size());
+					if(!writerPanoFile.isOpened())
+					{
+						cout << "Failed to write to video\n";
+					}
+					//Convert UMat to Mat
+					//https://l.facebook.com/l.php?u=https%3A%2F%2Fstackoverflow.com%2Fquestions%2F27445398%2Fhow-to-read-umat-from-a-file-in-opencv-3-0-beta%2F27530966%2327530966&h=ATMi7koVOPGdKUH5SkT2K4FFgz0yQJK8W1RPIonoWWLbIGvx4shezu7iC0AuGxxOzjXCFTs_VM6ccbHvQZfjfHWzgUS3XxGezKN3jeFaCgbz3h0h1i5OcskqysJIYDbYU45P
+					Mat frameDst;
+					frameDst = timelapser->getDst().getMat(cv::ACCESS_READ);
+					writerPanoFile.write(frameDst);
+				}// VideoWriter writes stitched frame to file
+				else
+				{
+					blender->feed(frmWarpedS, maskWarped, corners[frm_idx]);
+				}
+
+				frameAcrsEachVideos[frm_idx].release();
+				frmWarped.release();
+				frameResized.release();
+				mask.release();
+
+			}//end of for loop
+
+			if(!timelapse)
+			{
+				Mat result, resultMask;
+				Size resultSize = frameSubset[0].size();
+				blender->blend(result, resultMask);
+
+				cout << "Compositing done" << endl;
+				writerPanoFile.open(resultName, CV_FOURCC('M','J','P','G'), fps, result.size());
+				writerPanoFile.write(result);
+				imshow("Real-Time VideoStitching Feed", result);
+			}
+
+			pairWiseMatchesQueue.push(pairWiseMatches);
+			framesQueue.push(frameSubset);
+			frameNamesQueue.push(frameNamesSubset);
+			fullFrameSizesQueue.push(fullFrameSizesSubset);
+			camerasQueue.push(cameras);
+
+			// Release Unused Memory
+			frameSubset.clear();
+			framesWarped.clear();
+			framesWarpedF.clear();
+			masks.clear();
+
+			//Start Compositing
+			index++;	
+		} 	
+	}
+	(*matcher).collectGarbage();
+	
+	cout << "Finished at date,time: " << asctime(localtime(&timev)) << endl;
+	
+	
 }
 
 //display all cameras in GUI windows
@@ -693,5 +1193,21 @@ void displayFeaturesPerCam(vector<concurrent_queue<ImageFeatures>*> &featuresQue
 				imshow(vidNames.at(i), frameKeyPoints);
 			}
 		}	
+	}
+}
+
+//release all camera capture resources(s)
+void stopMultiCapture(vector<VideoCapture*> &camCap, int &numVideos)
+{
+	VideoCapture *capture;
+	for(int i = 0; i < numVideos; ++i)
+	{
+		capture = camCap.at(i);
+		if(capture->isOpened())
+		{
+			//Release VideoCapture resource
+			capture->release();
+			cout << "Capture " << i << " released" << endl;
+		}
 	}
 }
