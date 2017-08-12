@@ -16,6 +16,7 @@ Makefile
 
 ## Program List:
 
+* <realtime_stitching.py>
 * <VideoStreaming.py>
 * <motion_detector.py>
 * <picamera_fps_demo.py>	
@@ -56,6 +57,10 @@ $ ./sift
 4. For other programs written in Python, simply run them by $ python filename.py
 
 5. Briefly analyze the menu options below, then we will walkthrough how to execute the program from the command line.
+
+TO RUN THE REALTIME STITCHING ALGORITHM, EXECUTE THE PROGRAM: realtime_stitching.py as such, "$python realtime_stitching.py"
+
+The number of cameras stitched or direction/configuration of cameras can be adjusted within the program
 
 ENTER file - Detect draw feature points from local picture file      
 ENTER video - Detect draw feature points from a local video file               
