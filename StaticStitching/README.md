@@ -145,8 +145,23 @@ a file called **result**.
 The above command sets the images we want to use, the feature algorithm, warping algorithm stereographic view for panorama,
 and the output filename is called "sjsu360pano.jpg".
 
+## References
 
+Here are all the sources that I used in writing the videoStitching.cpp program:
 
+- P. (2017, January 05). Multi-camera Capture using OpenCV (Multi-threaded). Retrieved July 20, 2017, from https://putuyuwono.wordpress.com/2015/05/29/multi-thread-multi-cameracapture-using-opencv/
+
+The first reference above, I used to add multithreading support for each video file. So now each video file is managed by a thread that way our program processes the video files in parallel and stitches a new panorama video file faster.
+
+- OpenCV Documentation at the Trunk (2017, August 11) from http://docs.opencv.org/trunk/
+
+The OpenCV Trunk Documentation was used to find information on how to use functions and classes in the `videoStitching.cpp` code.
+
+- OpenCV Github Repository, Samples, CPP, stitching_detailed.cpp. (2017, August 11). from  https://github.com/opencv/opencv/blob/master/samples/cpp/stitching_detailed.cpp
+
+The `imageStitching.cpp` in our Github Repository is directly taken from OpenCV's sample of programs based in their Github Repository. We are modifying the sample program source code "stitching_detailed.cpp" specfied above to do `staticVideoStitching`. This new file being created is called `videoStitching.cpp`, it will take the video frames from multiple video files and process the video data to create a new panorama video file. 
+
+Currently I am working on fixing the "matchFeatures" function of the `videoStitching.cpp`. Once that is fixed, you will be able to insert video files from saved video feed of video cameras that each intersect at different points and create video panoramas.
 
     
 
