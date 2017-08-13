@@ -57,6 +57,8 @@ apt-get install -y libswresample-dev
 apt-get install -y libmp3lame-dev
 apt-get install -y v4l-utils
 apt-get install -y unzip
+apt-get install -y libgflags-dev libgflags-doc libgflags2v5
+apt-get install -y python-gflags python-google-apputils python3-gflags python3-google-apputils
 apt-get install -y ffmpeg
 apt-get install -y default-jdk
 apt-get install -y python-dev python-numpy python-tk
@@ -107,6 +109,8 @@ cmake -D CMAKE_BUILD_TYPE=RELEASE \
 -D INSTALL_PYTHON_EXAMPLES=ON \
 -D BUILD_EXAMPLES=ON \
 -D WITH_FFMPEG=ON \
+-D WITH_NVCUVID=ON \
+-D WITH_GSTREAMER=ON \
 -D WITH_QT=ON \
 -D WITH_OPENGL=ON ..
 
